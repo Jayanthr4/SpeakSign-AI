@@ -72,6 +72,45 @@ def draw_connections(frame,points,edges,color,thickness=2):
         if 0<=x<width and 0<=y<height:
             cv2.circle(frame,(int(x),int(y)),2,color,-1)
 
+
+def head_crop_box(pose_points, person_box, width, height, padding=0.45):
+    """Conservative head ROI in original pixels, from visible pose landmarks.
+
+    Pose points already use original-frame pixels. The ROI stays within the
+    tracked person's bounding box to reduce cross-person face contamination.
+    Returns None when there is insufficient evidence of head location.
+    """
+    if len(pose_points)<13:return None
+    import math
+    x1,y1,x2,y2=map(float,person_box)
+    head=[pose_points[i] for i in (0,1,2,3,4,5,6,7,8) if i<len(pose_points)]
+    head=[p for p in head if len(p)>=2 and all(math.isfinite(v) for v in p[:2])
+          and x1<=p[0]<=x2 and y1<=p[1]<=y2]
+    if len(head)<2:return None
+    xs=[p[0] for p in head];ys=[p[1] for p in head]
+    shoulders=[pose_points[i] for i in (11,12)]
+    shoulder_width=abs(shoulders[0][0]-shoulders[1][0])
+    span=max(max(xs)-min(xs),max(ys)-min(ys),shoulder_width*0.45,20)
+    cx=(min(xs)+max(xs))/2
+    cy=(min(ys)+max(ys))/2
+    radius=span*(0.5+padding)
+    a=max(0,int(max(x1,cx-radius)));b=max(0,int(max(y1,cy-radius)))
+    c=min(width,int(min(x2,cx+radius)));d=min(height,int(min(y2,cy+radius)))
+    if c-a<24 or d-b<24:return None
+    return [a,b,c,d]
+
+
+def face_quality(points, frame_width, frame_height):
+    """Geometry checks, not a calibrated visibility/occlusion estimate."""
+    import math
+    if len(points)<468:return {"usable":False,"reason":"insufficient_points"}
+    lips=(0,13,14,17,61,291)
+    values=[points[i] for i in lips]
+    if not all(len(p)>=2 and all(math.isfinite(v) for v in p[:2]) for p in values):
+        return {"usable":False,"reason":"invalid_lips"}
+    inside=sum(0<=p[0]<frame_width and 0<=p[1]<frame_height for p in values)
+    return {"usable":inside==len(values),"reason":"geometry_only" if inside==len(values) else "lips_outside_frame"}
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--input",type=Path,required=True,help="Same source video used in V2.4")
@@ -80,6 +119,7 @@ def main():
     p.add_argument("--signer-ids",type=int,nargs="+",default=None,
                    help="Track IDs for the two main signers; otherwise use two most frequent IDs")
     p.add_argument("--enable-face",action="store_true",help="Enable optional face mesh extraction (off by default)")
+    p.add_argument("--head-crop-fallback",action="store_true",help="Try pose-guided head ROI if face missing on person crop")
     p.add_argument("--max-frames",type=int,default=None)
     p.add_argument("--model-dir",type=Path,default=Path("storage/models"))
     args=p.parse_args()
@@ -112,6 +152,13 @@ def main():
         cap.release()
         raise RuntimeError("Cannot write preview video")
     detectors={}
+    fallback_detector=(mp.tasks.vision.FaceLandmarker.create_from_options(
+        mp.tasks.vision.FaceLandmarkerOptions(
+            base_options=mp.tasks.BaseOptions(model_asset_path=str(face_path)),num_faces=1,
+            running_mode=mp.tasks.vision.RunningMode.IMAGE))
+        if args.enable_face and args.head_crop_fallback else None)
+    fallback_attempts=Counter()
+    fallback_success=Counter()
     last_timestamp={}
     frames=0
     missing=Counter()
@@ -155,8 +202,26 @@ def main():
                             if pose.pose_landmarks:
                                 item["pose"]=landmarks_to_frame(pose.pose_landmarks[0],[x1,y1,x2,y2])
                                 draw_connections(frame,item["pose"],POSE_CONNECTIONS,(255,190,40))
+                            face_source="person_crop" if face is not None and face.face_landmarks else "none"
                             if face is not None and face.face_landmarks:
                                 item["face"]=landmarks_to_frame(face.face_landmarks[0],[x1,y1,x2,y2])
+                            elif fallback_detector is not None and item["pose"]:
+                                head_box=head_crop_box(item["pose"],[x1,y1,x2,y2],width,height)
+                                if head_box:
+                                    fallback_attempts[tid]+=1
+                                    hx1,hy1,hx2,hy2=head_box
+                                    head_rgb=cv2.cvtColor(frame[hy1:hy2,hx1:hx2],cv2.COLOR_BGR2RGB)
+                                    head_image=mp.Image(image_format=mp.ImageFormat.SRGB,data=head_rgb)
+                                    head_result=fallback_detector.detect(head_image)
+                                    if head_result.face_landmarks:
+                                        candidate=landmarks_to_frame(head_result.face_landmarks[0],head_box)
+                                        if face_quality(candidate,width,height)["usable"]:
+                                            item["face"]=candidate
+                                            face_source="pose_head_crop"
+                                            fallback_success[tid]+=1
+                            item["quality"]["face_source"]=face_source
+                            item["quality"]["face_geometry"]=face_quality(item["face"],width,height)
+                            if item["face"]:
                                 # Sparse face points for readable preview; full mesh exported.
                                 draw_connections(frame,item["face"],FACE_CONNECTIONS,(255,90,190),1)
                             for hand in item["hands"]:
@@ -183,11 +248,15 @@ def main():
     finally:
         cap.release()
         writer.release()
+        if fallback_detector is not None:fallback_detector.close()
         for pair in detectors.values():
             for detector in pair.values():detector.close()
     summary={
         "source":str(args.input),"frames":frames,"fps":fps,
         "selected_track_ids":selected,"face_enabled":args.enable_face,
+        "head_crop_fallback_enabled":bool(fallback_detector is not None),
+        "head_crop_attempts":dict(fallback_attempts),
+        "head_crop_successes":dict(fallback_success),
         "present_frames":dict(detected),"missing_frames":dict(missing),
         "limitations":[
             "Track IDs may switch across occlusions; this is not identity verification.",
