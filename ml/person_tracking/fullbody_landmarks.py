@@ -79,6 +79,7 @@ def main():
     p.add_argument("--output",type=Path,default=Path("storage/fullbody"))
     p.add_argument("--signer-ids",type=int,nargs="+",default=None,
                    help="Track IDs for the two main signers; otherwise use two most frequent IDs")
+    p.add_argument("--enable-face",action="store_true",help="Enable optional face mesh extraction (off by default)")
     p.add_argument("--max-frames",type=int,default=None)
     p.add_argument("--model-dir",type=Path,default=Path("storage/models"))
     args=p.parse_args()
@@ -98,7 +99,7 @@ def main():
     if not selected:p.error("No tracked people found in the V2.4 JSONL")
     print(f"Processing track IDs: {selected} (review identity continuity manually)")
     pose_path=model_file(args.model_dir,"pose")
-    face_path=model_file(args.model_dir,"face")
+    face_path=model_file(args.model_dir,"face") if args.enable_face else None
     cap=cv2.VideoCapture(str(args.input))
     if not cap.isOpened():raise RuntimeError(f"Cannot open video: {args.input}")
     fps=cap.get(cv2.CAP_PROP_FPS)
@@ -145,16 +146,16 @@ def main():
                             if tid not in detectors:
                                 detectors[tid]={
                                     "pose":make_detector("pose",pose_path),
-                                    "face":make_detector("face",face_path)}
+                                    **({"face":make_detector("face",face_path)} if args.enable_face else {})}
                                 last_timestamp[tid]=-1
                             stamp=max(timestamp,last_timestamp[tid]+1)
                             last_timestamp[tid]=stamp
                             pose=detectors[tid]["pose"].detect_for_video(mpimage,stamp)
-                            face=detectors[tid]["face"].detect_for_video(mpimage,stamp)
+                            face=detectors[tid]["face"].detect_for_video(mpimage,stamp) if args.enable_face else None
                             if pose.pose_landmarks:
                                 item["pose"]=landmarks_to_frame(pose.pose_landmarks[0],[x1,y1,x2,y2])
                                 draw_connections(frame,item["pose"],POSE_CONNECTIONS,(255,190,40))
-                            if face.face_landmarks:
+                            if face is not None and face.face_landmarks:
                                 item["face"]=landmarks_to_frame(face.face_landmarks[0],[x1,y1,x2,y2])
                                 # Sparse face points for readable preview; full mesh exported.
                                 draw_connections(frame,item["face"],FACE_CONNECTIONS,(255,90,190),1)
@@ -186,7 +187,7 @@ def main():
             for detector in pair.values():detector.close()
     summary={
         "source":str(args.input),"frames":frames,"fps":fps,
-        "selected_track_ids":selected,
+        "selected_track_ids":selected,"face_enabled":args.enable_face,
         "present_frames":dict(detected),"missing_frames":dict(missing),
         "limitations":[
             "Track IDs may switch across occlusions; this is not identity verification.",
