@@ -37,6 +37,7 @@ export default function App() {
   const frameId=useRef<number>(0);
   const active=useRef(false);
   const lastTime=useRef(-1);
+  const lastVideoFrameTime=useRef(-1);
   const lastSample=useRef(0);
   const samples=useRef<Observation[]>([]);
   const startTime=useRef(0);
@@ -67,7 +68,7 @@ export default function App() {
     sourceRef.current=null;setSource(null);setPlaying(false);
     const c=canvas.current;c?.getContext('2d')?.clearRect(0,0,c.width,c.height);
   }
-  function reset() {samples.current=[];setObservations([]);setNotes('');lastSample.current=0;lastTime.current=-1;startTime.current=performance.now();}
+  function reset() {samples.current=[];setObservations([]);setNotes('');lastSample.current=0;lastVideoFrameTime.current=-1;startTime.current=performance.now();}
   function tick() {
     const v=video.current,c=canvas.current,d=detector.current;
     if(!active.current||!v||!c||!d)return;
@@ -75,10 +76,16 @@ export default function App() {
       const now=performance.now();
       if(now-lastSample.current>160){
         lastSample.current=now;
-        // Video mode requires monotonically increasing media timestamps.
-        const stamp=sourceRef.current==='video'?v.currentTime*1000:now;
-        if(stamp>lastTime.current){
+        // MediaPipe's graph persists across sources. Always supply a strictly
+        // increasing timestamp on one shared monotonic clock, even when a
+        // recording starts at 0 or is replayed/seeked.
+        const stamp=Math.max(now,lastTime.current+1);
+        const isVideo=sourceRef.current==='video';
+        const mediaTime=v.currentTime;
+        // Avoid sending the same decoded video frame repeatedly.
+        if(!isVideo || mediaTime!==lastVideoFrameTime.current){
           lastTime.current=stamp;
+          if(isVideo)lastVideoFrameTime.current=mediaTime;
           try {
             const result=d.detectForVideo(v,stamp);
             c.width=v.videoWidth;c.height=v.videoHeight;
