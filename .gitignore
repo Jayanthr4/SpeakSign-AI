@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+frontend/dist/
+storage/
+datasets/
+model_weights/
+*.mp4
+*.mov
+*.webm
+.env
+.DS_Store
