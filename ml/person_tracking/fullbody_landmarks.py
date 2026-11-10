@@ -55,6 +55,23 @@ def draw_points(frame,points,indices,color):
             cv2.circle(frame,(int(x),int(y)),2,color,-1)
 
 
+HAND_CONNECTIONS=[(0,1),(1,2),(2,3),(3,4),(0,5),(5,6),(6,7),(7,8),(5,9),(9,10),(10,11),(11,12),(9,13),(13,14),(14,15),(15,16),(13,17),(17,18),(18,19),(19,20),(0,17)]
+POSE_CONNECTIONS=[(int(a),int(b)) for a,b in mp.solutions.pose.POSE_CONNECTIONS]
+FACE_CONNECTIONS=[(int(a),int(b)) for a,b in mp.solutions.face_mesh.FACEMESH_CONTOURS]
+
+def draw_connections(frame,points,edges,color,thickness=2):
+    height,width=frame.shape[:2]
+    for a,b in edges:
+        if a>=len(points) or b>=len(points):
+            continue
+        ax,ay=points[a][:2]
+        bx,by=points[b][:2]
+        if all(0<=x<width and 0<=y<height for x,y in ((ax,ay),(bx,by))):
+            cv2.line(frame,(int(ax),int(ay)),(int(bx),int(by)),color,thickness)
+    for x,y,*_ in points:
+        if 0<=x<width and 0<=y<height:
+            cv2.circle(frame,(int(x),int(y)),2,color,-1)
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--input",type=Path,required=True,help="Same source video used in V2.4")
@@ -136,11 +153,15 @@ def main():
                             face=detectors[tid]["face"].detect_for_video(mpimage,stamp)
                             if pose.pose_landmarks:
                                 item["pose"]=landmarks_to_frame(pose.pose_landmarks[0],[x1,y1,x2,y2])
-                                draw_points(frame,item["pose"],range(33),(255,190,40))
+                                draw_connections(frame,item["pose"],POSE_CONNECTIONS,(255,190,40))
                             if face.face_landmarks:
                                 item["face"]=landmarks_to_frame(face.face_landmarks[0],[x1,y1,x2,y2])
                                 # Sparse face points for readable preview; full mesh exported.
-                                draw_points(frame,item["face"],[1,4,33,61,133,168,263,291,362],(255,90,190))
+                                draw_connections(frame,item["face"],FACE_CONNECTIONS,(255,90,190),1)
+                            for hand in item["hands"]:
+                                pts=hand.get("landmarks_xy_pixels_z_relative",[])
+                                if len(pts)==21:
+                                    draw_connections(frame,pts,HAND_CONNECTIONS,(65,235,85),2)
                             item["quality"]={
                                 "hands_detected":len(item["hands"]),
                                 "pose_detected":bool(item["pose"]),
