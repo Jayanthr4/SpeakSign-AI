@@ -11,11 +11,27 @@ from collections import defaultdict
 from pathlib import Path
 
 def find_root(root:Path)->Path:
-    candidates=[root,root/"asl_alphabet_train",root/"asl_alphabet_train"/"asl_alphabet_train"]
+    """Find the actual training class directory inside a Kaggle extraction."""
+    if not root.exists():
+        raise FileNotFoundError(
+            f"Dataset path does not exist: {root.resolve()}\\n"
+            "Download and extract the Kaggle ASL Alphabet dataset first. "
+            "Use: find datasets -maxdepth 6 -type d | head -60"
+        )
+    candidates=[root]
+    if root.is_dir():
+        candidates.extend(p for p in root.rglob("*") if p.is_dir() and len(p.relative_to(root).parts)<=5)
     for path in candidates:
-        if path.is_dir() and sum(p.is_dir() for p in path.iterdir())>=20:
+        children=[p for p in path.iterdir() if p.is_dir()]
+        classes=[p for p in children if any(p.glob("*.jpg")) or any(p.glob("*.jpeg")) or any(p.glob("*.png"))]
+        if len(classes)>=20 and any(p.name.upper()=="A" for p in classes):
+            print(f"Discovered training classes: {path.resolve()}",flush=True)
             return path
-    raise FileNotFoundError(f"Cannot locate class folders beneath {root}")
+    raise FileNotFoundError(
+        f"No ASL Alphabet training class folders found under {root.resolve()}.\\n"
+        "Expected 20+ class folders (A, B, C, ...) containing JPG/PNG images.\\n"
+        "Inspect extraction with: find datasets -maxdepth 6 -type d | head -60"
+    )
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -37,13 +53,13 @@ def main():
     if args.epochs<1 or args.batch_size<1: p.error("epochs and batch-size must be positive")
     random.seed(args.seed);torch.manual_seed(args.seed)
     root=find_root(args.data)
-    labels=sorted(d.name for d in root.iterdir() if d.is_dir() and any(d.glob("*.jpg")))
+    labels=sorted(d.name for d in root.iterdir() if d.is_dir() and any(d.glob("*.jpg")) or any(d.glob("*.jpeg")) or any(d.glob("*.png")))
     if not labels:raise ValueError("No labeled JPG images found")
     label_to_id={name:i for i,name in enumerate(labels)}
     train_rows=[];val_rows=[]
     rng=random.Random(args.seed)
     for label in labels:
-        paths=sorted((root/label).glob("*.jpg"))
+        paths=sorted(path for path in (root/label).iterdir() if path.suffix.lower() in {".jpg",".jpeg",".png"})
         rng.shuffle(paths)
         if len(paths)<5:raise ValueError(f"Not enough examples for {label}")
         n_val=max(1,round(len(paths)*0.15))
