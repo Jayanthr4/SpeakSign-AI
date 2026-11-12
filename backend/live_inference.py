@@ -85,7 +85,9 @@ def infer_frame(session_id:str, encoded:bytes):
                     face_points=[[round((fx1+p.x*(fx2-fx1))/w,4),round((fy1+p.y*(fy2-fy1))/h,4)] for p in face_result.face_landmarks[0]]
                 else:
                     face_points=[]
-                people.append({"pose":pose_points,"face":face_points,"track_id":int(tid),"box":[round(x1/w,4),round(y1/h,4),round(x2/w,4),round(y2/h,4)],"hands":hands,"confidence":round(float(conf),3)})
+                from ml.recognition.live_alphabet import classify
+                alphabet=[classify(hand) for hand in hands]
+                people.append({"alphabet":alphabet,"pose":pose_points,"face":face_points,"track_id":int(tid),"box":[round(x1/w,4),round(y1/h,4),round(x2/w,4),round(y2/h,4)],"hands":hands,"confidence":round(float(conf),3)})
         now=time.monotonic()
         for key,(_,detector_obj,pose_obj,face_obj,updated) in list(_sessions.items()):
             if key!=session_id and now-updated>90:
@@ -93,7 +95,7 @@ def infer_frame(session_id:str, encoded:bytes):
         while len(_sessions)>_MAX_SESSIONS:
             key,(_,detector_obj,pose_obj,face_obj,_)=_sessions.popitem(last=False)
             detector_obj.close();pose_obj.close();face_obj.close()
-        return {"people":people,"width":w,"height":h,"inference_ms":round((time.perf_counter()-started)*1000),"recognition_status":"not_implemented","note":"Provisional tracking IDs; hand landmarks are not sign recognition"}
+        return {"people":people,"width":w,"height":h,"inference_ms":round((time.perf_counter()-started)*1000),"recognition_status":"experimental_static_alphabet_only","note":"Provisional tracking IDs; hand landmarks are not sign recognition"}
 
 def close_session(session_id:str):
     with _lock:
