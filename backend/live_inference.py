@@ -63,10 +63,27 @@ def infer_frame(session_id:str, encoded:bytes):
                 mp_crop=mp.Image(image_format=mp.ImageFormat.SRGB,data=crop)
                 pose_result=pose_detector.detect(mp_crop)
                 face_result=face_detector.detect(mp_crop)
+                face_box=(left,top,right,bottom)
+                # A head-focused second pass improves small-face detection.
+                # It uses the upper portion of the tracked person, not another person.
+                if not face_result.face_landmarks:
+                    head_bottom=min(bottom,top+max(80,int((bottom-top)*0.46)))
+                    head_left=max(left,left+int((right-left)*0.10))
+                    head_right=min(right,right-int((right-left)*0.10))
+                    if head_bottom-top>=48 and head_right-head_left>=48:
+                        head_rgb=cv2.cvtColor(frame[top:head_bottom,head_left:head_right],cv2.COLOR_BGR2RGB)
+                        head_result=face_detector.detect(mp.Image(image_format=mp.ImageFormat.SRGB,data=head_rgb))
+                        if head_result.face_landmarks:
+                            face_result=head_result
+                            face_box=(head_left,top,head_right,head_bottom)
                 def remap(points):
                     return [[round((left+p.x*(right-left))/w,4),round((top+p.y*(bottom-top))/h,4)] for p in points]
                 pose_points=remap(pose_result.pose_landmarks[0]) if pose_result.pose_landmarks else []
-                face_points=remap(face_result.face_landmarks[0]) if face_result.face_landmarks else []
+                if face_result.face_landmarks:
+                    fx1,fy1,fx2,fy2=face_box
+                    face_points=[[round((fx1+p.x*(fx2-fx1))/w,4),round((fy1+p.y*(fy2-fy1))/h,4)] for p in face_result.face_landmarks[0]]
+                else:
+                    face_points=[]
                 people.append({"pose":pose_points,"face":face_points,"track_id":int(tid),"box":[round(x1/w,4),round(y1/h,4),round(x2/w,4),round(y2/h,4)],"hands":hands,"confidence":round(float(conf),3)})
         now=time.monotonic()
         for key,(_,detector_obj,pose_obj,face_obj,updated) in list(_sessions.items()):
