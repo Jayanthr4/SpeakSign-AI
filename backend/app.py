@@ -98,7 +98,14 @@ def job_timeline(job_id:str):
 def job_preview(job_id:str):
  folder=job_folder(job_id)
  path=folder/"browser_preview.mp4"
- if not path.is_file():raise HTTPException(409,"Preview not ready")
+ if not path.is_file():
+  original=folder/"fullbody/fullbody_preview.mp4"
+  if not original.is_file():raise HTTPException(409,"Preview not ready")
+  import shutil,subprocess
+  ffmpeg=shutil.which("ffmpeg")
+  if not ffmpeg:raise HTTPException(503,"Install ffmpeg: brew install ffmpeg")
+  result=subprocess.run([ffmpeg,"-y","-i",str(original),"-an","-c:v","libx264","-preset","veryfast","-pix_fmt","yuv420p","-movflags","+faststart",str(path)],capture_output=True)
+  if result.returncode:raise HTTPException(500,"Preview conversion failed; inspect server logs")
  return FileResponse(path,media_type="video/mp4")
 @app.get("/api/jobs/{job_id}/log")
 def job_log(job_id:str):

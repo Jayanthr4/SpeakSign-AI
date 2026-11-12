@@ -4,6 +4,7 @@ type Candidate={track_id:number;candidate_sign:string;start_seconds:number;end_s
 export default function ServerVideoAnalysis(){
  const [file,setFile]=useState<File|null>(null);
  const [job,setJob]=useState<Job|null>(null);
+ const [savedJobId]=useState(()=>localStorage.getItem('speaksign-last-job'));
  const [items,setItems]=useState<Candidate[]>([]);
  const [error,setError]=useState('');
  const [log,setLog]=useState('');
@@ -34,6 +35,7 @@ export default function ServerVideoAnalysis(){
    const response=await fetch('/api/jobs',{method:'POST',body:form});
    if(!response.ok)throw Error(await response.text());
    const created=await response.json() as {id:string;state:string};
+   localStorage.setItem('speaksign-last-job',created.id);
    setJob({...created,stage:'queued',progress:0});
   }catch(e){setError(String(e));}
  }
