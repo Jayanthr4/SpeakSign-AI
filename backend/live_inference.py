@@ -20,6 +20,7 @@ def infer_frame(session_id:str, encoded:bytes):
     if frame is None:raise ValueError("Invalid JPEG")
     h,w=frame.shape[:2]
     if max(w,h)>1280:raise ValueError("Frame too large")
+    started=time.perf_counter()
     with _lock:
         if session_id not in _sessions:
             from ultralytics import YOLO
@@ -88,11 +89,11 @@ def infer_frame(session_id:str, encoded:bytes):
         now=time.monotonic()
         for key,(_,detector_obj,pose_obj,face_obj,updated) in list(_sessions.items()):
             if key!=session_id and now-updated>90:
-                detector_obj.close();pose_obj.close();face_obj.close();pose_obj.close();face_obj.close();del _sessions[key]
+                detector_obj.close();pose_obj.close();face_obj.close();del _sessions[key]
         while len(_sessions)>_MAX_SESSIONS:
             key,(_,detector_obj,pose_obj,face_obj,_)=_sessions.popitem(last=False)
-            detector_obj.close()
-        return {"people":people,"width":w,"height":h,"note":"Provisional tracking IDs; hand landmarks are not sign recognition"}
+            detector_obj.close();pose_obj.close();face_obj.close()
+        return {"people":people,"width":w,"height":h,"inference_ms":round((time.perf_counter()-started)*1000),"recognition_status":"not_implemented","note":"Provisional tracking IDs; hand landmarks are not sign recognition"}
 
 def close_session(session_id:str):
     with _lock:
