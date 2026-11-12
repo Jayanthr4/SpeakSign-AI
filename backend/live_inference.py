@@ -88,15 +88,17 @@ def infer_frame(session_id:str, encoded:bytes):
                     face_points=[[round((fx1+p.x*(fx2-fx1))/w,4),round((fy1+p.y*(fy2-fy1))/h,4)] for p in face_result.face_landmarks[0]]
                 else:
                     face_points=[]
-                from ml.recognition.live_alphabet import classify,classify_gesture
+                from ml.recognition.live_alphabet import classify
+                from ml.recognition.live_gestures import classify as classify_gesture,is_open_palm
                 from ml.recognition.live_onnx_alphabet import available,predict
                 # Use trained classifier when model files exist.
                 alphabet=[predict(frame,hand) for hand in hands] if available() else [classify(hand) for hand in hands]
                 gestures=[classify_gesture(hand) for hand in hands]
-                if hands:
-                    motion=_waves[session_id].update(int(tid),hands[0],time.monotonic())
-                    if motion["gesture"]:
-                        gestures.append(motion)
+                for hand_index,hand in enumerate(hands):
+                    # Track wave history separately for each person's hand.
+                    motion=_waves[session_id].update(int(tid)*10+hand_index,hand,time.monotonic())
+                    if motion["gesture"] and is_open_palm(hand):
+                        gestures.append({"gesture":"HELLO_WAVE","status":"candidate","method":"temporal_hand_motion","hand_index":hand_index})
                 people.append({"alphabet":alphabet,"gestures":gestures,"pose":pose_points,"face":face_points,"track_id":int(tid),"box":[round(x1/w,4),round(y1/h,4),round(x2/w,4),round(y2/h,4)],"hands":hands,"confidence":round(float(conf),3)})
         now=time.monotonic()
         for key,(_,detector_obj,pose_obj,face_obj,updated) in list(_sessions.items()):
