@@ -110,9 +110,9 @@ export default function LiveMultiSigner(){
    <p>{people.flatMap(p=>(p.alphabet||[]).map((cue,i)=>'Track '+p.track_id+' hand '+(i+1)+': '+(cue.letter||'Uncertain')+(cue.confidence!==undefined?' ('+Math.round(cue.confidence*100)+'%'+(cue.top_class&&!cue.letter?', top '+cue.top_class:'')+')':''))).join(' · ')||'No hands detected / no letter candidates'}</p>
   </div>
   <div style={{padding:12,border:'1px solid #7775',borderRadius:8,marginTop:10}}>
-   <strong>Experimental gesture and movement candidates</strong>
-   <p>THUMBS_UP is a generic gesture; WAVE_LIKE_MOTION is not a confirmed ASL BYE sign. Both are unvalidated cues.</p>
-   <p>{people.flatMap(p=>(p.gestures||[]).filter(g=>g.gesture).map(g=>'Track '+p.track_id+': '+g.gesture)).join(' · ')||'No gesture candidates'}</p>
+   <strong>Live everyday gesture candidates</strong>
+   <p>Supported experimental gestures: 👍 THUMBS_UP, 👎 THUMBS_DOWN, 👋 HELLO_WAVE, ✌️ VICTORY, 👌 OK. These are everyday gesture candidates, not verified ASL signs.</p>
+   <p>{people.flatMap(p=>(p.gestures||[]).filter(g=>g.gesture).map(g=>'Track '+p.track_id+': '+({THUMBS_UP:'👍 Thumbs Up',THUMBS_DOWN:'👎 Thumbs Down',HELLO_WAVE:'👋 Hello / Wave',VICTORY:'✌️ Victory',OK:'👌 OK'} as Record<string,string>)[g.gesture!]||'Unknown')).join(' · ')||'No gesture candidates'}</p>
   </div>
   <p>Face diagnostic: {people.length?people.map(p=>'Track '+p.track_id+': '+(p.face?.length||0)+' face landmarks').join(' · '):'No tracked people yet'}</p>
   <p>People tracked: {people.length} · {people.map(p=>'Track '+p.track_id+' (H'+p.hands.length+' P'+Number((p.pose||[]).length>0)+' F'+Number((p.face||[]).length>0)+')').join(', ')||'No detections'}</p>
