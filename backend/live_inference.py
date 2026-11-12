@@ -89,7 +89,9 @@ def infer_frame(session_id:str, encoded:bytes):
                 else:
                     face_points=[]
                 from ml.recognition.live_alphabet import classify,classify_gesture
-                alphabet=[classify(hand) for hand in hands]
+                from ml.recognition.live_onnx_alphabet import available,predict
+                # Use trained classifier when model files exist.
+                alphabet=[predict(frame,hand) for hand in hands] if available() else [classify(hand) for hand in hands]
                 gestures=[classify_gesture(hand) for hand in hands]
                 if hands:
                     motion=_waves[session_id].update(int(tid),hands[0],time.monotonic())
@@ -103,7 +105,7 @@ def infer_frame(session_id:str, encoded:bytes):
         while len(_sessions)>_MAX_SESSIONS:
             key,(_,detector_obj,pose_obj,face_obj,_)=_sessions.popitem(last=False)
             detector_obj.close();pose_obj.close();face_obj.close();_waves.pop(key,None)
-        return {"people":people,"width":w,"height":h,"inference_ms":round((time.perf_counter()-started)*1000),"recognition_status":"experimental_static_alphabet_only","note":"Provisional tracking IDs; hand landmarks are not sign recognition"}
+        return {"people":people,"width":w,"height":h,"inference_ms":round((time.perf_counter()-started)*1000),"recognition_status":"trained_static_alphabet_candidates" if __import__("ml.recognition.live_onnx_alphabet",fromlist=["available"]).available() else "experimental_geometry_fallback","note":"Provisional tracking IDs; hand landmarks are not sign recognition"}
 
 def close_session(session_id:str):
     with _lock:
