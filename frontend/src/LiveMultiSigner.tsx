@@ -6,7 +6,7 @@ const LINKS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11
 export default function LiveMultiSigner(){
  const video=useRef<HTMLVideoElement>(null),canvas=useRef<HTMLCanvasElement>(null),capture=useRef<HTMLCanvasElement>(null);
  const session=useRef<string|null>(null),stream=useRef<MediaStream|null>(null),busy=useRef(false);
- const [active,setActive]=useState(false),[people,setPeople]=useState<Person[]>([]),[latency,setLatency]=useState<number|null>(null),[message,setMessage]=useState('Start the camera to track people and hands.');
+ const [showFace,setShowFace]=useState(true),[active,setActive]=useState(false),[people,setPeople]=useState<Person[]>([]),[latency,setLatency]=useState<number|null>(null),[message,setMessage]=useState('Start the camera to track people and hands.');
  useEffect(()=>()=>{stop();},[]);
  function stop(){
   const id=session.current;session.current=null;
@@ -22,7 +22,7 @@ export default function LiveMultiSigner(){
    stream.current=media;session.current=crypto.randomUUID();
    if(!video.current){media.getTracks().forEach(t=>t.stop());return;}
    video.current.srcObject=media;await video.current.play();
-   setActive(true);setMessage('Running local YOLO + per-person hand landmarks. Track IDs may change.');
+   setActive(true);setMessage('Running YOLO + hand, pose, and face landmarks. Track IDs may change.');
   }catch(e){setMessage('Camera error: '+String(e));}
  }
  useEffect(()=>{
@@ -67,22 +67,35 @@ export default function LiveMultiSigner(){
     }
    }
    drawEdges(person.pose||[],POSE_LINKS,'#42b5ff');
-   drawEdges(person.face||[],FACE_LINKS,'#f88ac5');
+   if(showFace && person.face?.length){
+    drawEdges(person.face,FACE_LINKS,'#ff3fa9');
+    drawingContext.fillStyle='#ff3fa9';
+    for(const point of person.face){
+     if(!Number.isFinite(point[0])||!Number.isFinite(point[1]))continue;
+     drawingContext.beginPath();
+     drawingContext.arc(point[0]*canvasWidth,point[1]*canvasHeight,1.5,0,Math.PI*2);
+     drawingContext.fill();
+    }
+   }
    for(const hand of person.hands){
     ctx.strokeStyle='#ffcc6a';ctx.lineWidth=2;
     for(const [a,b] of LINKS){ctx.beginPath();ctx.moveTo(hand[a][0]*c.width,hand[a][1]*c.height);ctx.lineTo(hand[b][0]*c.width,hand[b][1]*c.height);ctx.stroke();}
     for(const [x,y] of hand){ctx.beginPath();ctx.arc(x*c.width,y*c.height,3,0,Math.PI*2);ctx.fillStyle='#ffffff';ctx.fill();}
    }
   }
- },[people]);
+ },[people,showFace]);
  return <section className="panel" style={{padding:24,marginBottom:24}}>
   <h2>Live multi-signer tracking</h2>
   <p style={{margin:'12px 0'}}>Experimental YOLO tracking with hand, pose, and face overlays per tracked person. No live ASL recognition or transcription.</p>
   <div className="player" style={{position:'relative',maxWidth:800}}>
    <video ref={video} muted playsInline style={{display:'block',width:'100%',height:'auto'}}/>
-   <canvas ref={canvas} style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}/>
+   <canvas ref={canvas} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',display:'block',zIndex:10,pointerEvents:'none'}}/>
   </div>
   <canvas ref={capture} style={{display:'none'}}/>
+  <label style={{display:'flex',alignItems:'center',gap:8,marginTop:10}}>
+   <input type="checkbox" checked={showFace} onChange={e=>setShowFace(e.target.checked)}/>
+   Show face mesh (pink, 478 landmarks)
+  </label>
   <div className="actions" style={{marginTop:12}}>
    <button className="primary" onClick={()=>void start()}>{active?'Restart tracking':'Start live tracking'}</button>
    <button className="outline" disabled={!active} onClick={stop}>Stop</button>
