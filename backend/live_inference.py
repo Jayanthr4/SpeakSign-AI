@@ -26,6 +26,7 @@ def infer_frame(session_id:str, encoded:bytes):
             import mediapipe as mp
             from pathlib import Path
             from ml.person_tracking.multisigner_landmarks import MODEL_URL
+            from ml.person_tracking.fullbody_landmarks import model_file
             import urllib.request
             path=Path(__file__).resolve().parents[1]/"storage/models/hand_landmarker.task"
             path.parent.mkdir(parents=True,exist_ok=True)
@@ -34,9 +35,15 @@ def infer_frame(session_id:str, encoded:bytes):
                 base_options=mp.tasks.BaseOptions(model_asset_path=str(path)),
                 running_mode=mp.tasks.vision.RunningMode.IMAGE,num_hands=2)
             detector=mp.tasks.vision.HandLandmarker.create_from_options(options)
-            _sessions[session_id]=(YOLO("yolo11n.pt"),detector,time.monotonic())
-        model,detector,_=_sessions[session_id]
-        _sessions[session_id]=(model,detector,time.monotonic())
+            pose_path=model_file(path.parent,"pose")
+            face_path=model_file(path.parent,"face")
+            pose=mp.tasks.vision.PoseLandmarker.create_from_options(
+                mp.tasks.vision.PoseLandmarkerOptions(base_options=mp.tasks.BaseOptions(model_asset_path=str(pose_path)),running_mode=mp.tasks.vision.RunningMode.IMAGE,num_poses=1))
+            face=mp.tasks.vision.FaceLandmarker.create_from_options(
+                mp.tasks.vision.FaceLandmarkerOptions(base_options=mp.tasks.BaseOptions(model_asset_path=str(face_path)),running_mode=mp.tasks.vision.RunningMode.IMAGE,num_faces=1))
+            _sessions[session_id]=(YOLO("yolo11n.pt"),detector,pose,face,time.monotonic())
+        model,detector,pose_detector,face_detector,_=_sessions[session_id]
+        _sessions[session_id]=(model,detector,pose_detector,face_detector,time.monotonic())
         result=model.track(frame,persist=True,tracker="botsort.yaml",classes=[0],conf=0.25,verbose=False)[0]
         people=[]
         boxes=result.boxes
@@ -53,17 +60,25 @@ def infer_frame(session_id:str, encoded:bytes):
                 hands=[]
                 for hand in detected.hand_landmarks:
                     hands.append([[round((left+p.x*(right-left))/w,4),round((top+p.y*(bottom-top))/h,4)] for p in hand])
-                people.append({"track_id":int(tid),"box":[round(x1/w,4),round(y1/h,4),round(x2/w,4),round(y2/h,4)],"hands":hands,"confidence":round(float(conf),3)})
+                mp_crop=mp.Image(image_format=mp.ImageFormat.SRGB,data=crop)
+                pose_result=pose_detector.detect(mp_crop)
+                face_result=face_detector.detect(mp_crop)
+                def remap(points):
+                    return [[round((left+p.x*(right-left))/w,4),round((top+p.y*(bottom-top))/h,4)] for p in points]
+                pose_points=remap(pose_result.pose_landmarks[0]) if pose_result.pose_landmarks else []
+                face_points=remap(face_result.face_landmarks[0]) if face_result.face_landmarks else []
+                people.append({"pose":pose_points,"face":face_points,"track_id":int(tid),"box":[round(x1/w,4),round(y1/h,4),round(x2/w,4),round(y2/h,4)],"hands":hands,"confidence":round(float(conf),3)})
         now=time.monotonic()
-        for key,(_,detector_obj,updated) in list(_sessions.items()):
+        for key,(_,detector_obj,pose_obj,face_obj,updated) in list(_sessions.items()):
             if key!=session_id and now-updated>90:
-                detector_obj.close();del _sessions[key]
+                detector_obj.close();pose_obj.close();face_obj.close();pose_obj.close();face_obj.close();del _sessions[key]
         while len(_sessions)>_MAX_SESSIONS:
-            key,(_,detector_obj,_)=_sessions.popitem(last=False)
+            key,(_,detector_obj,pose_obj,face_obj,_)=_sessions.popitem(last=False)
             detector_obj.close()
         return {"people":people,"width":w,"height":h,"note":"Provisional tracking IDs; hand landmarks are not sign recognition"}
 
 def close_session(session_id:str):
     with _lock:
         entry=_sessions.pop(session_id,None)
-        if entry:entry[1].close()
+        if entry:
+            for detector in entry[1:4]:detector.close()
