@@ -6,7 +6,7 @@ const LINKS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11
 export default function LiveMultiSigner(){
  const video=useRef<HTMLVideoElement>(null),canvas=useRef<HTMLCanvasElement>(null),capture=useRef<HTMLCanvasElement>(null);
  const session=useRef<string|null>(null),stream=useRef<MediaStream|null>(null),busy=useRef(false);
- const [active,setActive]=useState(false),[people,setPeople]=useState<Person[]>([]),[message,setMessage]=useState('Start the camera to track people and hands.');
+ const [active,setActive]=useState(false),[people,setPeople]=useState<Person[]>([]),[latency,setLatency]=useState<number|null>(null),[message,setMessage]=useState('Start the camera to track people and hands.');
  useEffect(()=>()=>{stop();},[]);
  function stop(){
   const id=session.current;session.current=null;
@@ -38,8 +38,8 @@ export default function LiveMultiSigner(){
     if(!blob)return;
     const response=await fetch('/api/live/'+id+'/frame',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:blob});
     if(!response.ok)throw Error('Live inference HTTP '+response.status+': '+await response.text());
-    const result=await response.json() as {people:Person[]};
-    if(session.current===id)setPeople(result.people);
+    const result=await response.json() as {people:Person[];inference_ms?:number};
+    if(session.current===id){setPeople(result.people);setLatency(result.inference_ms??null);}
    }catch(e){setMessage(String(e));}
    finally{busy.current=false;}
   },300);
@@ -88,6 +88,8 @@ export default function LiveMultiSigner(){
    <button className="outline" disabled={!active} onClick={stop}>Stop</button>
   </div>
   <p>{message}</p>
+  <p>Inference time: {latency===null?'Waiting for frame…':latency+' ms'} · Live sign recognition: not implemented</p>
+  <p>Face diagnostic: {people.length?people.map(p=>'Track '+p.track_id+': '+(p.face?.length||0)+' face landmarks').join(' · '):'No tracked people yet'}</p>
   <p>People tracked: {people.length} · {people.map(p=>'Track '+p.track_id+' (H'+p.hands.length+' P'+Number((p.pose||[]).length>0)+' F'+Number((p.face||[]).length>0)+')').join(', ')||'No detections'}</p>
  </section>;
 }
