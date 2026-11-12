@@ -54,3 +54,52 @@ def save_session(session: Session):
         db.execute("INSERT INTO sessions VALUES (?,?,?,?,?,?,?)",
           (result["id"],result["created_at"],result["source"],result["label"],result["frames"],result["both_hands"],result["notes"]))
     return result
+
+
+import json
+import uuid as _uuid
+from fastapi import UploadFile,File
+from fastapi.responses import FileResponse
+from backend.video_jobs import JOBS,start
+@app.post("/api/jobs",status_code=202)
+async def upload_job(file:UploadFile=File(...)):
+ ext=Path(file.filename or "").suffix.lower()
+ if ext not in {".mp4",".mov",".webm",".mkv"}:raise HTTPException(415,"Unsupported video type")
+ job_id=str(_uuid.uuid4());folder=JOBS/job_id;folder.mkdir(parents=True)
+ path=folder/("source"+ext);size=0
+ try:
+  with path.open("wb") as output:
+   while chunk:=await file.read(1024*1024):
+    size+=len(chunk)
+    if size>200*1024*1024:raise HTTPException(413,"Max 200 MB")
+    output.write(chunk)
+  if not size:raise HTTPException(422,"Empty video")
+ except Exception:
+  path.unlink(missing_ok=True);folder.rmdir();raise
+ finally:await file.close()
+ (folder/"status.json").write_text(json.dumps({"id":job_id,"state":"queued","stage":"queued","progress":0}))
+ start(job_id)
+ return {"id":job_id,"state":"queued"}
+def job_folder(job_id):
+ try:canonical=str(_uuid.UUID(job_id))
+ except ValueError:raise HTTPException(404,"Job not found")
+ folder=JOBS/canonical
+ if not (folder/"status.json").is_file():raise HTTPException(404,"Job not found")
+ return folder
+@app.get("/api/jobs/{job_id}")
+def job_status(job_id:str):
+ return json.loads((job_folder(job_id)/"status.json").read_text())
+@app.get("/api/jobs/{job_id}/timeline")
+def job_timeline(job_id:str):
+ path=job_folder(job_id)/"results/candidate_timeline.jsonl"
+ if not path.is_file():raise HTTPException(409,"Timeline not ready")
+ return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+@app.get("/api/jobs/{job_id}/preview")
+def job_preview(job_id:str):
+ path=job_folder(job_id)/"fullbody/fullbody_preview.mp4"
+ if not path.is_file():raise HTTPException(409,"Preview not ready")
+ return FileResponse(path,media_type="video/mp4")
+@app.get("/api/jobs/{job_id}/log")
+def job_log(job_id:str):
+ path=job_folder(job_id)/"processing.log"
+ return {"tail":path.read_text(errors="replace")[-6000:] if path.is_file() else "Not started"}
