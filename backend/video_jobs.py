@@ -1,5 +1,5 @@
 """Run existing SpeakSign ML stages for local uploaded videos."""
-import json,subprocess,sys,threading,traceback
+import json,subprocess,sys,threading,traceback,shutil
 from pathlib import Path
 import cv2
 ROOT=Path(__file__).resolve().parents[1]
@@ -21,9 +21,15 @@ def process(job_id):
    ("recognition",["ml.recognition.gesturesign_inference","--windows",str(folder/"sequences/temporal_windows.jsonl"),"--width",str(width),"--height",str(height),"--fps",str(fps),"--output",str(folder/"predictions.jsonl")]),
    ("timeline",["ml.recognition.temporal_consistency","--input",str(folder/"predictions.jsonl"),"--fps",str(fps),"--output",str(folder/"results")])]
   for i,(name,args) in enumerate(stages):
-   update(state="running",stage=name,progress=i*20)
+   update(state="running",stage=name,progress=i*19)
    with (folder/"processing.log").open("a") as log:
     subprocess.run([sys.executable,"-m",*args],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
+  update(state="running",stage="encoding_preview",progress=95)
+  ffmpeg=shutil.which("ffmpeg")
+  if not ffmpeg:raise RuntimeError("ffmpeg is required for browser-compatible video. Install: brew install ffmpeg")
+  preview=folder/"fullbody/fullbody_preview.mp4"
+  with (folder/"processing.log").open("a") as log:
+   subprocess.run([ffmpeg,"-y","-i",str(preview),"-an","-c:v","libx264","-preset","veryfast","-crf","23","-pix_fmt","yuv420p","-movflags","+faststart",str(folder/"browser_preview.mp4")],stdout=log,stderr=subprocess.STDOUT,check=True)
   update(state="completed",stage="done",progress=100)
  except Exception as exc:
   with (folder/"processing.log").open("a") as log:traceback.print_exc(file=log)

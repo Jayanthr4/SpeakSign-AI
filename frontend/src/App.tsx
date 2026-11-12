@@ -1,3 +1,4 @@
+import LiveMultiSigner from './LiveMultiSigner';
 import ServerVideoAnalysis from './ServerVideoAnalysis';
 import { useEffect, useRef, useState } from 'react';
 import { HandLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
@@ -161,6 +162,7 @@ export default function App() {
         </>}
         {inStudio&&<><div className="page-heading"><small className="eyebrow">{view==='live'?'LIVE VIDEO PIPELINE':'LOCAL VIDEO WORKSPACE'}</small><h1>{view==='live'?'Live Vision Studio':'Video Analysis'}</h1><p>{view==='live'?'Visualize hand movement as it happens.':'Inspect a recording and export reproducible landmark evidence.'}</p></div>
           {view==='video'&&<ServerVideoAnalysis/>}
+          {view==='live'&&<LiveMultiSigner/>}
           <div className="studio-grid"><div><section className="panel player-panel"><div className="panel-header"><strong><Hand size={18}/> Landmark visualizer</strong><span className="pill">{playing?'● PROCESSING':'○ STANDBY'}</span></div>
             <div className="player"><video ref={video} playsInline onEnded={()=>{active.current=false;setPlaying(false);}}/><canvas ref={canvas}/>
               {!source&&<div className="empty-player"><div className="hand-symbol"><Hand size={52}/></div><h3>Your vision workspace</h3><p>{view==='live'?'Connect your webcam to start tracking.':'Choose a video to inspect its hand movements.'}</p><button className="primary" onClick={()=>view==='live'?void cameraStart():picker.current?.click()}>{view==='live'?<Camera size={17}/>:<UploadCloud size={17}/>} {view==='live'?'Enable Camera':'Select Video'}</button></div>}

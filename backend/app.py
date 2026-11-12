@@ -96,10 +96,36 @@ def job_timeline(job_id:str):
  return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 @app.get("/api/jobs/{job_id}/preview")
 def job_preview(job_id:str):
- path=job_folder(job_id)/"fullbody/fullbody_preview.mp4"
+ folder=job_folder(job_id)
+ path=folder/"browser_preview.mp4"
  if not path.is_file():raise HTTPException(409,"Preview not ready")
  return FileResponse(path,media_type="video/mp4")
 @app.get("/api/jobs/{job_id}/log")
 def job_log(job_id:str):
  path=job_folder(job_id)/"processing.log"
  return {"tail":path.read_text(errors="replace")[-6000:] if path.is_file() else "Not started"}
+
+# V3.1: browser-compatible preview and live multi-person detection
+from fastapi import Request
+from backend.live_inference import infer_frame,close_session
+@app.post("/api/live/{session_id}/frame")
+async def live_frame(session_id:str,request:Request):
+ try:canonical=str(_uuid.UUID(session_id))
+ except ValueError:raise HTTPException(422,"Invalid session ID")
+ data=await request.body()
+ if len(data)>2_000_000:raise HTTPException(413,"Frame exceeds 2 MB")
+ try:return await __import__("starlette.concurrency",fromlist=["run_in_threadpool"]).run_in_threadpool(infer_frame,canonical,data)
+ except ValueError as exc:raise HTTPException(422,str(exc))
+@app.delete("/api/live/{session_id}")
+def stop_live(session_id:str):
+ try:canonical=str(_uuid.UUID(session_id))
+ except ValueError:raise HTTPException(422,"Invalid session ID")
+ close_session(canonical)
+ return {"closed":True}
+@app.get("/api/jobs/{job_id}/artifacts")
+def job_artifacts(job_id:str):
+ folder=job_folder(job_id)
+ return {"tracking":(folder/"hands/multisigner_preview.mp4").is_file(),
+         "fullbody":(folder/"fullbody/fullbody_preview.mp4").is_file(),
+         "browser_preview":(folder/"browser_preview.mp4").is_file(),
+         "timeline":(folder/"results/candidate_timeline.jsonl").is_file()}
