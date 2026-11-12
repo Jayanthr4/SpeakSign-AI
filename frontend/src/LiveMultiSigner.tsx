@@ -1,6 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
 type AlphabetCue={letter:string|null;status:string;method:string};
-type Person={alphabet?:AlphabetCue[];track_id:number;box:number[];hands:number[][][];confidence:number;pose:number[][];face:number[][]};
+type GestureCue={gesture:string|null;status:string;method?:string};
+type Person={gestures?:GestureCue[];alphabet?:AlphabetCue[];track_id:number;box:number[];hands:number[][][];confidence:number;pose:number[][];face:number[][]};
 const POSE_LINKS=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[0,1],[0,4]];
 const FACE_LINKS=[[10,338],[338,297],[297,332],[332,284],[284,251],[251,389],[389,356],[356,454],[454,323],[323,361],[361,288],[288,397],[397,365],[365,379],[379,378],[378,400],[400,377],[377,152],[152,148],[148,176],[176,149],[149,150],[150,136],[136,172],[172,58],[58,132],[132,93],[93,234],[234,127],[127,162],[162,21],[21,54],[54,103],[103,67],[67,109],[109,10],[33,133],[362,263],[61,40],[40,37],[37,0],[0,267],[267,270],[270,291]];
 const LINKS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
@@ -105,8 +106,13 @@ export default function LiveMultiSigner(){
   <p>Inference time: {latency===null?'Waiting for frame…':latency+' ms'} · Isolated-sign recognition: not connected to live camera</p>
   <div style={{padding:12,border:'1px solid #7775',borderRadius:8,marginTop:10}}>
    <strong>Experimental fingerspelling handshape candidates</strong>
-   <p>Prototype supports only B, D, I, L, V, Y. Not a trained A–Z recognizer; no J/Z motion recognition. Treat results as unverified.</p>
+   <p>Prototype supports B, D, I, L, O, V, Y. Not a trained A–Z recognizer; no J/Z motion recognition. Treat results as unverified.</p>
    <p>{people.flatMap(p=>(p.alphabet||[]).map((cue,i)=>'Track '+p.track_id+' hand '+(i+1)+': '+(cue.letter||'Uncertain'))).join(' · ')||'No hands detected / no letter candidates'}</p>
+  </div>
+  <div style={{padding:12,border:'1px solid #7775',borderRadius:8,marginTop:10}}>
+   <strong>Experimental gesture and movement candidates</strong>
+   <p>THUMBS_UP is a generic gesture; WAVE_LIKE_MOTION is not a confirmed ASL BYE sign. Both are unvalidated cues.</p>
+   <p>{people.flatMap(p=>(p.gestures||[]).filter(g=>g.gesture).map(g=>'Track '+p.track_id+': '+g.gesture)).join(' · ')||'No gesture candidates'}</p>
   </div>
   <p>Face diagnostic: {people.length?people.map(p=>'Track '+p.track_id+': '+(p.face?.length||0)+' face landmarks').join(' · '):'No tracked people yet'}</p>
   <p>People tracked: {people.length} · {people.map(p=>'Track '+p.track_id+' (H'+p.hands.length+' P'+Number((p.pose||[]).length>0)+' F'+Number((p.face||[]).length>0)+')').join(', ')||'No detections'}</p>
