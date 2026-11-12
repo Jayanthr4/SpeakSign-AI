@@ -50,17 +50,20 @@ export default function LiveMultiSigner(){
   if(!c||!v||!v.videoWidth)return;
   c.width=v.videoWidth;c.height=v.videoHeight;
   const ctx=c.getContext('2d');if(!ctx)return;
+  const drawingContext=ctx;
+  const canvasWidth=c.width;
+  const canvasHeight=c.height;
   ctx.clearRect(0,0,c.width,c.height);
   for(const person of people){
    const [x1,y1,x2,y2]=person.box;
    ctx.strokeStyle='#41e5b9';ctx.lineWidth=3;ctx.strokeRect(x1*c.width,y1*c.height,(x2-x1)*c.width,(y2-y1)*c.height);
    ctx.fillStyle='#41e5b9';ctx.font='bold 18px sans-serif';ctx.fillText('Track '+person.track_id,x1*c.width,Math.max(20,y1*c.height-8));
    function drawEdges(points:number[][],edges:number[][],color:string){
-    ctx.strokeStyle=color;ctx.lineWidth=2;
+    drawingContext.strokeStyle=color;drawingContext.lineWidth=2;
     for(const [a,b] of edges){
      if(!points[a]||!points[b])continue;
-     ctx.beginPath();ctx.moveTo(points[a][0]*c.width,points[a][1]*c.height);
-     ctx.lineTo(points[b][0]*c.width,points[b][1]*c.height);ctx.stroke();
+     drawingContext.beginPath();drawingContext.moveTo(points[a][0]*canvasWidth,points[a][1]*canvasHeight);
+     drawingContext.lineTo(points[b][0]*canvasWidth,points[b][1]*canvasHeight);drawingContext.stroke();
     }
    }
    drawEdges(person.pose||[],POSE_LINKS,'#42b5ff');
