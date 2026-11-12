@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-type AlphabetCue={letter:string|null;status:string;method:string};
+type AlphabetCue={letter:string|null;status:string;method:string;confidence?:number;top_class?:string|null};
 type GestureCue={gesture:string|null;status:string;method?:string};
 type Person={gestures?:GestureCue[];alphabet?:AlphabetCue[];track_id:number;box:number[];hands:number[][][];confidence:number;pose:number[][];face:number[][]};
 const POSE_LINKS=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[0,1],[0,4]];
@@ -8,7 +8,7 @@ const LINKS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11
 export default function LiveMultiSigner(){
  const video=useRef<HTMLVideoElement>(null),canvas=useRef<HTMLCanvasElement>(null),capture=useRef<HTMLCanvasElement>(null);
  const session=useRef<string|null>(null),stream=useRef<MediaStream|null>(null),busy=useRef(false);
- const [showFace,setShowFace]=useState(true),[active,setActive]=useState(false),[people,setPeople]=useState<Person[]>([]),[latency,setLatency]=useState<number|null>(null),[message,setMessage]=useState('Start the camera to track people and hands.');
+ const [recognitionStatus,setRecognitionStatus]=useState('waiting'),[showFace,setShowFace]=useState(true),[active,setActive]=useState(false),[people,setPeople]=useState<Person[]>([]),[latency,setLatency]=useState<number|null>(null),[message,setMessage]=useState('Start the camera to track people and hands.');
  useEffect(()=>()=>{stop();},[]);
  function stop(){
   const id=session.current;session.current=null;
@@ -40,8 +40,8 @@ export default function LiveMultiSigner(){
     if(!blob)return;
     const response=await fetch('/api/live/'+id+'/frame',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:blob});
     if(!response.ok)throw Error('Live inference HTTP '+response.status+': '+await response.text());
-    const result=await response.json() as {people:Person[];inference_ms?:number};
-    if(session.current===id){setPeople(result.people);setLatency(result.inference_ms??null);}
+    const result=await response.json() as {people:Person[];inference_ms?:number;recognition_status?:string};
+    if(session.current===id){setPeople(result.people);setLatency(result.inference_ms??null);setRecognitionStatus(result.recognition_status??"unknown");}
    }catch(e){setMessage(String(e));}
    finally{busy.current=false;}
   },300);
@@ -88,7 +88,7 @@ export default function LiveMultiSigner(){
  },[people,showFace]);
  return <section className="panel" style={{padding:24,marginBottom:24}}>
   <h2>Live multi-signer tracking</h2>
-  <p style={{margin:'12px 0'}}>Experimental YOLO tracking with hand, pose, and face overlays per tracked person. No live ASL recognition or transcription.</p>
+  <p style={{margin:'12px 0'}}>YOLO tracking with hand, pose, and face overlays and experimental static alphabet classification. No ASL word translation.</p>
   <div className="player" style={{position:'relative',maxWidth:800}}>
    <video ref={video} muted playsInline style={{display:'block',width:'100%',height:'auto'}}/>
    <canvas ref={canvas} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',display:'block',zIndex:10,pointerEvents:'none'}}/>
@@ -103,11 +103,11 @@ export default function LiveMultiSigner(){
    <button className="outline" disabled={!active} onClick={stop}>Stop</button>
   </div>
   <p>{message}</p>
-  <p>Inference time: {latency===null?'Waiting for frame…':latency+' ms'} · Isolated-sign recognition: not connected to live camera</p>
+  <p>Recognition: {recognitionStatus} · Inference time: {latency===null?'Waiting for frame…':latency+' ms'} · Dynamic sign recognition: not connected</p>
   <div style={{padding:12,border:'1px solid #7775',borderRadius:8,marginTop:10}}>
-   <strong>Experimental fingerspelling handshape candidates</strong>
-   <p>Prototype supports B, D, I, L, O, V, Y. Not a trained A–Z recognizer; no J/Z motion recognition. Treat results as unverified.</p>
-   <p>{people.flatMap(p=>(p.alphabet||[]).map((cue,i)=>'Track '+p.track_id+' hand '+(i+1)+': '+(cue.letter||'Uncertain'))).join(' · ')||'No hands detected / no letter candidates'}</p>
+   <strong>Live alphabet candidates</strong>
+   <p>Uses the trained ONNX classifier when model files are installed; otherwise falls back to seven experimental geometry rules. J/Z require motion. Predictions are unverified on live camera.</p>
+   <p>{people.flatMap(p=>(p.alphabet||[]).map((cue,i)=>'Track '+p.track_id+' hand '+(i+1)+': '+(cue.letter||'Uncertain')+(cue.confidence!==undefined?' ('+Math.round(cue.confidence*100)+'%'+(cue.top_class&&!cue.letter?', top '+cue.top_class:'')+')':''))).join(' · ')||'No hands detected / no letter candidates'}</p>
   </div>
   <div style={{padding:12,border:'1px solid #7775',borderRadius:8,marginTop:10}}>
    <strong>Experimental gesture and movement candidates</strong>
