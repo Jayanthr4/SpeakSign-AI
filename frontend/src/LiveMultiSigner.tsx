@@ -104,12 +104,12 @@ export default function LiveMultiSigner(){
    <button className="outline" disabled={!active} onClick={stop}>Stop</button>
   </div>
   <p>{message}</p>
-  <p>Recognition: {recognitionStatus} · Inference time: {latency===null?'Waiting for frame…':latency+' ms'} · GPT temporal vision: {people.some(p=>p.gpt?.status==='disabled')?'disabled (configure backend key)':people.some(p=>p.gpt?.status==='analyzing')?'analyzing':people.some(p=>p.gpt?.prediction)?'candidate available':'waiting for motion'}</p>
+  <p>Recognition: {recognitionStatus} · Inference time: {latency===null?'Waiting for frame…':latency+' ms'} · Gemini temporal vision: {people.some(p=>p.gpt?.status==='disabled')?'disabled (configure backend key)':people.some(p=>p.gpt?.status==='analyzing')?'analyzing':people.some(p=>p.gpt?.prediction)?'candidate available':'waiting for motion'}</p>
   <div style={{padding:12,border:'1px solid #7775',borderRadius:8,marginTop:10}}>
-   <strong>GPT-assisted temporal interpretation (experimental)</strong>
-   <p>Opt-in server-side GPT analysis of short, motion-triggered frame sequences. Results may be wrong; this is not validated ASL translation. Camera crops are sent to OpenAI only when enabled.</p>
+   <strong>Gemini-assisted temporal interpretation (experimental)</strong>
+   <p>Opt-in server-side Gemini analysis of short, motion-triggered frame sequences. Results may be wrong; this is not validated ASL translation. Camera crops are sent to Google only when enabled.</p>
    {people.map(p=><p key={p.track_id}>Track {p.track_id}: {p.gpt?.status||'not initialized'} · {p.gpt?.frames_buffered||0} frames buffered
-    {p.gpt?.prediction&&<> · Candidate: {p.gpt.prediction.candidate_sign} ({p.gpt.prediction.uncertain?'uncertain':'model suggestion'}) · {p.gpt.prediction.interpretation} · GPT latency: {p.gpt.prediction.latency_ms} ms · {p.gpt.prediction.explanation}</>}
+    {p.gpt?.prediction&&<> · Candidate: {p.gpt.prediction.candidate_sign} ({p.gpt.prediction.uncertain?'uncertain':'model suggestion'}) · {p.gpt.prediction.interpretation} · Gemini latency: {p.gpt.prediction.latency_ms} ms · {p.gpt.prediction.explanation}</>}
     {p.gpt?.error&&<> · Error: {p.gpt.error}</>}
    </p>)}
   </div>
