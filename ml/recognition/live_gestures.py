@@ -34,7 +34,13 @@ def classify(hand:list[list[float]])->dict:
     folded=not any(s.values())
     thumb_open=d(4,5)>0.70*palm and d(4,17)>0.95*palm
     gesture=None
-    if folded and thumb_open and abs(thumb_dy)>0.35 and abs(thumb_dy)>abs(thumb_dx)*0.85:
+    # ASL I-LOVE-YOU handshape: index and pinky extended, middle and ring
+    # folded, thumb visibly separated from the palm. This is a static
+    # handshape candidate, not a translated sentence.
+    if (s["index"] and s["pinky"] and not s["middle"] and not s["ring"]
+            and thumb_open and d(8,20)>0.75*palm):
+        gesture="ILY_HANDSHAPE"
+    elif folded and thumb_open and abs(thumb_dy)>0.35 and abs(thumb_dy)>abs(thumb_dx)*0.85:
         gesture="THUMBS_UP" if thumb_dy<0 else "THUMBS_DOWN"
     elif s["index"] and s["middle"] and not s["ring"] and not s["pinky"] and d(8,12)>0.48*palm:
         gesture="VICTORY"
