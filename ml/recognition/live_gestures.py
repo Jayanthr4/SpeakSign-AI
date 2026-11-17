@@ -43,13 +43,27 @@ def classify(hand:list[list[float]])->dict:
         "thumb_index_distance":round(d(4,5)/palm,2),
         "thumb_pinky_distance":round(d(4,17)/palm,2),
     }
+    # A thumb can overlap the index/pinky in a 2D camera projection.
+    # Use its own joints to estimate extension, independent of screen direction.
+    thumb_tip_to_mcp=d(4,2)/palm
+    thumb_ip_to_mcp=d(3,2)/palm
+    thumb_joint_ratio=thumb_tip_to_mcp/max(thumb_ip_to_mcp,1e-6)
+    thumb_tip_to_palm=d(4,9)/palm
+    thumb_alt=(thumb_joint_ratio>1.55 and thumb_tip_to_mcp>0.38
+               and thumb_tip_to_palm>0.50)
+    result["diagnostics"]["ily_checks"].update({
+        "thumb_joint_ratio":round(thumb_joint_ratio,2),
+        "thumb_tip_to_mcp":round(thumb_tip_to_mcp,2),
+        "thumb_tip_to_palm":round(thumb_tip_to_palm,2),
+        "thumb_extended_by_joints":bool(thumb_alt),
+    })
     gesture=None
     # ASL I-LOVE-YOU handshape: index and pinky extended, middle and ring
     # folded, thumb visibly separated from the palm. This is a static
     # handshape candidate, not a translated sentence.
     if (s["index"] and s["pinky"] and not s["middle"] and not s["ring"]
-            and thumb_open and d(8,20)>0.75*palm):
-        gesture="ILY_HANDSHAPE"
+            and (thumb_open or thumb_alt) and d(8,20)>0.75*palm):
+        gesture="ILY_HANDSHAPE"\n        result["method"]="experimental_geometry_thumb_joints"
     elif folded and thumb_open and abs(thumb_dy)>0.35 and abs(thumb_dy)>abs(thumb_dx)*0.85:
         gesture="THUMBS_UP" if thumb_dy<0 else "THUMBS_DOWN"
     elif s["index"] and s["middle"] and not s["ring"] and not s["pinky"] and d(8,12)>0.48*palm:
