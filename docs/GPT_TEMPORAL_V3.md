@@ -1,6 +1,6 @@
 # SpeakSign v3 — Optional Gemini temporal vision
 
-This experimental feature keeps the existing YOLO + MediaPipe + ONNX alphabet and everyday gesture engines. It sends **selected short sequences of cropped signer images** to an Google vision-capable model for a separate, tentative interpretation.
+This experimental feature keeps the existing YOLO + MediaPipe + ONNX alphabet and everyday gesture engines. It sends **selected short sequences of cropped signer images** to a Google vision-capable model for a separate, tentative interpretation.
 
 ## Local setup
 
@@ -9,9 +9,9 @@ From the repository root:
 ```bash
 conda activate SpeakSign_conda_env
 python -m pip install "google-genai>=1.0,<2"
-export OPENAI_API_KEY="your-key-from-the-Google-platform"
-export SPEAKSIGN_Gemini_ENABLED=1
-export SPEAKSIGN_Gemini_MODEL=gemini-4.1-mini
+export GEMINI_API_KEY="your-key-from-Google-AI-Studio"
+export SPEAKSIGN_GEMINI_ENABLED=1
+export SPEAKSIGN_GEMINI_MODEL=gemini-2.5-flash-lite
 python -m uvicorn backend.app:app --reload --port 8000
 ```
 
