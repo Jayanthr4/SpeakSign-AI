@@ -11,7 +11,7 @@ conda activate SpeakSign_conda_env
 python -m pip install "google-genai>=1.0,<2"
 export GEMINI_API_KEY="your-key-from-Google-AI-Studio"
 export SPEAKSIGN_GEMINI_ENABLED=1
-export SPEAKSIGN_GEMINI_MODEL=gemini-2.5-flash-lite
+export SPEAKSIGN_GEMINI_MODEL=gemini-3.5-flash-lite
 python -m uvicorn backend.app:app --reload --port 8000
 ```
 
