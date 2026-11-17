@@ -1,7 +1,8 @@
 import {useEffect,useRef,useState} from 'react';
 type AlphabetCue={letter:string|null;status:string;method:string;confidence?:number;top_class?:string|null};
 type GestureCue={gesture:string|null;status:string;method?:string};
-type Person={gestures?:GestureCue[];alphabet?:AlphabetCue[];track_id:number;box:number[];hands:number[][][];confidence:number;pose:number[][];face:number[][]};
+type GPTCue={status:string;frames_buffered:number;motion_score:number;error?:string|null;prediction?:{candidate_sign:string;interpretation:string;uncertain:boolean;explanation:string;latency_ms:number;model:string}|null};
+type Person={gpt?:GPTCue;gestures?:GestureCue[];alphabet?:AlphabetCue[];track_id:number;box:number[];hands:number[][][];confidence:number;pose:number[][];face:number[][]};
 const POSE_LINKS=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[0,1],[0,4]];
 const FACE_LINKS=[[10,338],[338,297],[297,332],[332,284],[284,251],[251,389],[389,356],[356,454],[454,323],[323,361],[361,288],[288,397],[397,365],[365,379],[379,378],[378,400],[400,377],[377,152],[152,148],[148,176],[176,149],[149,150],[150,136],[136,172],[172,58],[58,132],[132,93],[93,234],[234,127],[127,162],[162,21],[21,54],[54,103],[103,67],[67,109],[109,10],[33,133],[362,263],[61,40],[40,37],[37,0],[0,267],[267,270],[270,291]];
 const LINKS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
@@ -103,7 +104,15 @@ export default function LiveMultiSigner(){
    <button className="outline" disabled={!active} onClick={stop}>Stop</button>
   </div>
   <p>{message}</p>
-  <p>Recognition: {recognitionStatus} · Inference time: {latency===null?'Waiting for frame…':latency+' ms'} · Dynamic sign recognition: not connected</p>
+  <p>Recognition: {recognitionStatus} · Inference time: {latency===null?'Waiting for frame…':latency+' ms'} · GPT temporal vision: {people.some(p=>p.gpt?.status==='disabled')?'disabled (configure backend key)':people.some(p=>p.gpt?.status==='analyzing')?'analyzing':people.some(p=>p.gpt?.prediction)?'candidate available':'waiting for motion'}</p>
+  <div style={{padding:12,border:'1px solid #7775',borderRadius:8,marginTop:10}}>
+   <strong>GPT-assisted temporal interpretation (experimental)</strong>
+   <p>Opt-in server-side GPT analysis of short, motion-triggered frame sequences. Results may be wrong; this is not validated ASL translation. Camera crops are sent to OpenAI only when enabled.</p>
+   {people.map(p=><p key={p.track_id}>Track {p.track_id}: {p.gpt?.status||'not initialized'} · {p.gpt?.frames_buffered||0} frames buffered
+    {p.gpt?.prediction&&<> · Candidate: {p.gpt.prediction.candidate_sign} ({p.gpt.prediction.uncertain?'uncertain':'model suggestion'}) · {p.gpt.prediction.interpretation} · GPT latency: {p.gpt.prediction.latency_ms} ms · {p.gpt.prediction.explanation}</>}
+    {p.gpt?.error&&<> · Error: {p.gpt.error}</>}
+   </p>)}
+  </div>
   <div style={{padding:12,border:'1px solid #7775',borderRadius:8,marginTop:10}}>
    <strong>Live alphabet candidates</strong>
    <p>Uses the trained ONNX classifier when model files are installed; otherwise falls back to seven experimental geometry rules. J/Z require motion. Predictions are unverified on live camera.</p>
