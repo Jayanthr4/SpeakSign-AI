@@ -1,6 +1,6 @@
-"""Optional GPT-assisted temporal visual interpretation.
+"""Optional Gemini-assisted temporal visual interpretation.
 
-Only server-side code reads OPENAI_API_KEY. Experimental, not validated ASL.
+Only server-side code reads GEMINI_API_KEY. Experimental, not validated ASL.
 """
 from __future__ import annotations
 from collections import deque
@@ -11,7 +11,7 @@ import base64
 import os
 import cv2
 
-_pool=ThreadPoolExecutor(max_workers=2,thread_name_prefix="speaksign-gpt")
+_pool=ThreadPoolExecutor(max_workers=2,thread_name_prefix="speaksign-gemini")
 _lock=Lock()
 _states={}
 _MAX_FRAMES=8
@@ -20,37 +20,45 @@ _COOLDOWN=3.5
 _TTL=120.0
 
 def enabled():
-    return bool(os.getenv("OPENAI_API_KEY")) and os.getenv("SPEAKSIGN_GPT_ENABLED","0")=="1"
+    return bool(os.getenv("GEMINI_API_KEY")) and os.getenv("SPEAKSIGN_GEMINI_ENABLED","0")=="1"
 
 def _interpret(frames):
-    from openai import OpenAI
+    """Interpret ordered JPEG crops with Google Gemini. Runs in background pool."""
+    from google import genai
+    from google.genai import types
     import json
     started=perf_counter()
-    images=[]
-    for jpg in frames:
-        images.append({"type":"input_image","image_url":"data:image/jpeg;base64,"+base64.b64encode(jpg).decode("ascii"),"detail":"low"})
     prompt=("These are time-ordered webcam images of one person signing, sampled across a short window. "
             "Provide only a cautious possible American Sign Language sign or gesture. "
             "Do not read captions or infer a sentence without clear evidence. "
-            "If unclear, use UNKNOWN. Output a JSON object with exactly "
-            "candidate_sign (string), interpretation (string), uncertain (boolean), "
-            "and explanation (short string). Do not invent confidence scores.")
-    client=OpenAI(timeout=15.0,max_retries=0)
-    response=client.responses.create(
-        model=os.getenv("SPEAKSIGN_GPT_MODEL","gpt-4.1-mini"),
-        input=[{"role":"user","content":[{"type":"input_text","text":prompt},*images]}],
-        text={"format":{"type":"json_schema","name":"sign_candidate","strict":True,
-            "schema":{"type":"object","properties":{
-                "candidate_sign":{"type":"string"},"interpretation":{"type":"string"},
-                "uncertain":{"type":"boolean"},"explanation":{"type":"string"}},
-                "required":["candidate_sign","interpretation","uncertain","explanation"],
-                "additionalProperties":False}}},
-        max_output_tokens=160)
-    parsed=json.loads(response.output_text)
-    parsed["latency_ms"]=round((perf_counter()-started)*1000)
-    parsed["model"]=response.model
-    parsed["status"]="candidate"
-    return parsed
+            "If unclear, use UNKNOWN. Do not invent confidence scores.")
+    parts=[types.Part.from_text(text=prompt)]
+    parts.extend(types.Part.from_bytes(data=jpg,mime_type="image/jpeg") for jpg in frames)
+    client=genai.Client(api_key=os.environ["GEMINI_API_KEY"],http_options=types.HttpOptions(timeout=15000))
+    try:
+        response=client.models.generate_content(
+            model=os.getenv("SPEAKSIGN_GEMINI_MODEL","gemini-2.5-flash-lite"),
+            contents=[types.Content(role="user",parts=parts)],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema={
+                    "type":"OBJECT",
+                    "properties":{
+                        "candidate_sign":{"type":"STRING"},
+                        "interpretation":{"type":"STRING"},
+                        "uncertain":{"type":"BOOLEAN"},
+                        "explanation":{"type":"STRING"}},
+                    "required":["candidate_sign","interpretation","uncertain","explanation"]},
+                max_output_tokens=200))
+        if not response.text:
+            raise RuntimeError("Gemini returned no text (possibly blocked or truncated)")
+        parsed=json.loads(response.text)
+        parsed["latency_ms"]=round((perf_counter()-started)*1000)
+        parsed["model"]=os.getenv("SPEAKSIGN_GEMINI_MODEL","gemini-2.5-flash-lite")
+        parsed["status"]="candidate"
+        return parsed
+    finally:
+        client.close()
 
 def update(session_id,track_id,frame,hand,now=None):
     """Nonblocking: submit at most one request per signer on meaningful motion."""
