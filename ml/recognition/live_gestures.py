@@ -33,6 +33,16 @@ def classify(hand:list[list[float]])->dict:
     # may be rotated relative to the webcam, so avoid strict joint angles.
     folded=not any(s.values())
     thumb_open=d(4,5)>0.70*palm and d(4,17)>0.95*palm
+    result["diagnostics"]["ily_checks"]={
+        "index_extended":bool(s["index"]),
+        "pinky_extended":bool(s["pinky"]),
+        "middle_folded":not s["middle"],
+        "ring_folded":not s["ring"],
+        "thumb_open":bool(thumb_open),
+        "index_pinky_spread":round(d(8,20)/palm,2),
+        "thumb_index_distance":round(d(4,5)/palm,2),
+        "thumb_pinky_distance":round(d(4,17)/palm,2),
+    }
     gesture=None
     # ASL I-LOVE-YOU handshape: index and pinky extended, middle and ring
     # folded, thumb visibly separated from the palm. This is a static
