@@ -99,19 +99,23 @@ def infer_frame(session_id:str, encoded:bytes):
                     motion=_waves[session_id].update(int(tid)*10+hand_index,hand,time.monotonic())
                     if motion["gesture"] and is_open_palm(hand):
                         gestures.append({"gesture":"HELLO_WAVE","status":"candidate","method":"temporal_hand_motion","hand_index":hand_index})
-                people.append({"alphabet":alphabet,"gestures":gestures,"pose":pose_points,"face":face_points,"track_id":int(tid),"box":[round(x1/w,4),round(y1/h,4),round(x2/w,4),round(y2/h,4)],"hands":hands,"confidence":round(float(conf),3)})
+                from backend.gpt_temporal import update as update_gpt
+                gpt=update_gpt(session_id,int(tid),frame[top:bottom,left:right],hands[0] if hands else [])
+                people.append({"gpt":gpt,"alphabet":alphabet,"gestures":gestures,"pose":pose_points,"face":face_points,"track_id":int(tid),"box":[round(x1/w,4),round(y1/h,4),round(x2/w,4),round(y2/h,4)],"hands":hands,"confidence":round(float(conf),3)})
         now=time.monotonic()
         for key,(_,detector_obj,pose_obj,face_obj,updated) in list(_sessions.items()):
             if key!=session_id and now-updated>90:
-                detector_obj.close();pose_obj.close();face_obj.close();del _sessions[key];_waves.pop(key,None)
+                detector_obj.close();pose_obj.close();face_obj.close();del _sessions[key];_waves.pop(key,None);__import__("backend.gpt_temporal",fromlist=["clear_session"]).clear_session(key)
         while len(_sessions)>_MAX_SESSIONS:
             key,(_,detector_obj,pose_obj,face_obj,_)=_sessions.popitem(last=False)
-            detector_obj.close();pose_obj.close();face_obj.close();_waves.pop(key,None)
+            detector_obj.close();pose_obj.close();face_obj.close();_waves.pop(key,None);__import__("backend.gpt_temporal",fromlist=["clear_session"]).clear_session(key)
         return {"people":people,"width":w,"height":h,"inference_ms":round((time.perf_counter()-started)*1000),"recognition_status":"trained_static_alphabet_candidates" if __import__("ml.recognition.live_onnx_alphabet",fromlist=["available"]).available() else "experimental_geometry_fallback","note":"Provisional tracking IDs; hand landmarks are not sign recognition"}
 
 def close_session(session_id:str):
     with _lock:
         entry=_sessions.pop(session_id,None)
         _waves.pop(session_id,None)
+        from backend.gpt_temporal import clear_session
+        clear_session(session_id)
         if entry:
             for detector in entry[1:4]:detector.close()
