@@ -37,7 +37,7 @@ def _interpret(frames):
     client=genai.Client(api_key=os.environ["GEMINI_API_KEY"],http_options=types.HttpOptions(timeout=15000))
     try:
         response=client.models.generate_content(
-            model=os.getenv("SPEAKSIGN_GEMINI_MODEL","gemini-2.5-flash-lite"),
+            model=os.getenv("SPEAKSIGN_GEMINI_MODEL","gemini-3.5-flash-lite"),
             contents=[types.Content(role="user",parts=parts)],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -54,7 +54,7 @@ def _interpret(frames):
             raise RuntimeError("Gemini returned no text (possibly blocked or truncated)")
         parsed=json.loads(response.text)
         parsed["latency_ms"]=round((perf_counter()-started)*1000)
-        parsed["model"]=os.getenv("SPEAKSIGN_GEMINI_MODEL","gemini-2.5-flash-lite")
+        parsed["model"]=os.getenv("SPEAKSIGN_GEMINI_MODEL","gemini-3.5-flash-lite")
         parsed["status"]="candidate"
         return parsed
     finally:
