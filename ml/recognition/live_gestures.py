@@ -63,7 +63,8 @@ def classify(hand:list[list[float]])->dict:
     # handshape candidate, not a translated sentence.
     if (s["index"] and s["pinky"] and not s["middle"] and not s["ring"]
             and (thumb_open or thumb_alt) and d(8,20)>0.75*palm):
-        gesture="ILY_HANDSHAPE"\n        result["method"]="experimental_geometry_thumb_joints"
+        gesture="ILY_HANDSHAPE"
+        result["method"]="experimental_geometry_thumb_joints"
     elif folded and thumb_open and abs(thumb_dy)>0.35 and abs(thumb_dy)>abs(thumb_dx)*0.85:
         gesture="THUMBS_UP" if thumb_dy<0 else "THUMBS_DOWN"
     elif s["index"] and s["middle"] and not s["ring"] and not s["pinky"] and d(8,12)>0.48*palm:
