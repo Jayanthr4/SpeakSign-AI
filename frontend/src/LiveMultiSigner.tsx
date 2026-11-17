@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 type AlphabetCue={letter:string|null;status:string;method:string;confidence?:number;top_class?:string|null};
-type GestureCue={gesture:string|null;status:string;method?:string};
+type GestureCue={gesture:string|null;status:string;method?:string;diagnostics?:{extended_fingers?:Record<string,boolean>;ily_checks?:Record<string,boolean|number>}};
 type GPTCue={status:string;frames_buffered:number;motion_score:number;error?:string|null;prediction?:{candidate_sign:string;interpretation:string;uncertain:boolean;explanation:string;latency_ms:number;model:string}|null};
 type Person={gpt?:GPTCue;gestures?:GestureCue[];alphabet?:AlphabetCue[];track_id:number;box:number[];hands:number[][][];confidence:number;pose:number[][];face:number[][]};
 const POSE_LINKS=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[0,1],[0,4]];
@@ -9,6 +9,7 @@ const LINKS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11
 export default function LiveMultiSigner(){
  const video=useRef<HTMLVideoElement>(null),canvas=useRef<HTMLCanvasElement>(null),capture=useRef<HTMLCanvasElement>(null);
  const session=useRef<string|null>(null),stream=useRef<MediaStream|null>(null),busy=useRef(false);
+ const [showGestureDebug,setShowGestureDebug]=useState(false);
  const [recognitionStatus,setRecognitionStatus]=useState('waiting'),[showFace,setShowFace]=useState(true),[active,setActive]=useState(false),[people,setPeople]=useState<Person[]>([]),[latency,setLatency]=useState<number|null>(null),[message,setMessage]=useState('Start the camera to track people and hands.');
  useEffect(()=>()=>{stop();},[]);
  function stop(){
@@ -123,6 +124,13 @@ export default function LiveMultiSigner(){
    <p>Supported experimental gestures: 👍 THUMBS_UP, 👎 THUMBS_DOWN, 👋 HELLO_WAVE, ✌️ VICTORY, 👌 OK, 🤟 ILY_HANDSHAPE (ASL handshape candidate). These are everyday gesture candidates, not verified ASL signs.</p>
    <p>{people.flatMap(p=>(p.gestures||[]).filter(g=>g.gesture).map(g=>'Track '+p.track_id+': '+({THUMBS_UP:'👍 Thumbs Up',THUMBS_DOWN:'👎 Thumbs Down',HELLO_WAVE:'👋 Hello / Wave',VICTORY:'✌️ Victory',OK:'👌 OK',ILY_HANDSHAPE:'🤟 I LOVE YOU (ASL handshape candidate)'} as Record<string,string>)[g.gesture!]||'Unknown')).join(' · ')||'No gesture candidates'}</p>
   </div>
+  <label style={{display:'flex',gap:8,alignItems:'center',marginTop:10}}>
+   <input type="checkbox" checked={showGestureDebug} onChange={e=>setShowGestureDebug(e.target.checked)}/>
+   Show local ILY landmark diagnostics
+  </label>
+  {showGestureDebug&&people.map(p=><div key={p.track_id} style={{fontSize:13,marginTop:6}}>
+   {p.gestures?.filter(g=>g.diagnostics).map((g,i)=><p key={i}>Track {p.track_id}, hand {i+1}: {Object.entries(g.diagnostics?.ily_checks||{}).map(([k,v])=>k+'='+String(v)).join(' · ')}</p>)||'No gesture measurements'}
+  </div>)}
   <p>Face diagnostic: {people.length?people.map(p=>'Track '+p.track_id+': '+(p.face?.length||0)+' face landmarks').join(' · '):'No tracked people yet'}</p>
   <p>People tracked: {people.length} · {people.map(p=>'Track '+p.track_id+' (H'+p.hands.length+' P'+Number((p.pose||[]).length>0)+' F'+Number((p.face||[]).length>0)+')').join(', ')||'No detections'}</p>
  </section>;
