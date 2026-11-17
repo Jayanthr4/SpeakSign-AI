@@ -120,8 +120,8 @@ export default function LiveMultiSigner(){
   </div>
   <div style={{padding:12,border:'1px solid #7775',borderRadius:8,marginTop:10}}>
    <strong>Live everyday gesture candidates</strong>
-   <p>Supported experimental gestures: 👍 THUMBS_UP, 👎 THUMBS_DOWN, 👋 HELLO_WAVE, ✌️ VICTORY, 👌 OK. These are everyday gesture candidates, not verified ASL signs.</p>
-   <p>{people.flatMap(p=>(p.gestures||[]).filter(g=>g.gesture).map(g=>'Track '+p.track_id+': '+({THUMBS_UP:'👍 Thumbs Up',THUMBS_DOWN:'👎 Thumbs Down',HELLO_WAVE:'👋 Hello / Wave',VICTORY:'✌️ Victory',OK:'👌 OK'} as Record<string,string>)[g.gesture!]||'Unknown')).join(' · ')||'No gesture candidates'}</p>
+   <p>Supported experimental gestures: 👍 THUMBS_UP, 👎 THUMBS_DOWN, 👋 HELLO_WAVE, ✌️ VICTORY, 👌 OK, 🤟 ILY_HANDSHAPE (ASL handshape candidate). These are everyday gesture candidates, not verified ASL signs.</p>
+   <p>{people.flatMap(p=>(p.gestures||[]).filter(g=>g.gesture).map(g=>'Track '+p.track_id+': '+({THUMBS_UP:'👍 Thumbs Up',THUMBS_DOWN:'👎 Thumbs Down',HELLO_WAVE:'👋 Hello / Wave',VICTORY:'✌️ Victory',OK:'👌 OK',ILY_HANDSHAPE:'🤟 I LOVE YOU (ASL handshape candidate)'} as Record<string,string>)[g.gesture!]||'Unknown')).join(' · ')||'No gesture candidates'}</p>
   </div>
   <p>Face diagnostic: {people.length?people.map(p=>'Track '+p.track_id+': '+(p.face?.length||0)+' face landmarks').join(' · '):'No tracked people yet'}</p>
   <p>People tracked: {people.length} · {people.map(p=>'Track '+p.track_id+' (H'+p.hands.length+' P'+Number((p.pose||[]).length>0)+' F'+Number((p.face||[]).length>0)+')').join(', ')||'No detections'}</p>
